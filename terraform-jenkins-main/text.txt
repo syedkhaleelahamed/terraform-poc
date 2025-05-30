@@ -1,0 +1,27 @@
+chmod go-w /mnt/workspace/source/ansible
+
+export ANSIBLE_CONFIG=/mnt/workspace/source/ansible/ansible.cfg
+
+mkdir -p ./workspace
+
+echo "[all]" > ./workspace/inventory.ini
+
+echo "${SPACELIFT_INPUT_INSTANCE_IPS} ansible_user=ubuntu ansible_ssh_private_key_file=/mnt/workspace/id_rsa_ansible" >> ./workspace/inventory.ini
+
+export ANSIBLE_INVENTORY=./workspace/inventory.ini
+
+mkdir -p /mnt/workspace
+
+aws ssm get-parameter --region us-east-1 --name "/ssh/demo-keypair/private" --with-decryption --query "Parameter.Value" --output text > /mnt/workspace/id_rsa_ansible
+
+chmod 600 /mnt/workspace/id_rsa_ansible
+
+
+echo -e "Host *\n StrictHostKeyChecking no\n UserKnownHostsFile /dev/null\n IdentityFile /mnt/workspace/id_rsa_ansible" > /mnt/workspace/ssh_config
+
+chmod 600 /mnt/workspace/ssh_config
+
+export ANSIBLE_PRIVATE_KEY_FILE=/mnt/workspace/id_rsa_ansible
+
+export ANSIBLE_SSH_ARGS="-F /mnt/workspace/ssh_config"
+
