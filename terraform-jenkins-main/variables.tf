@@ -33,7 +33,3 @@ variable "ec2_ami_id" {
   type        = string
   description = "AMI ID for the EC2 instance"
 }
-variable "public_key" {
-  type        = string
-  description = "Public key for the EC2 instance"
-}
