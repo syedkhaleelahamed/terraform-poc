@@ -2,20 +2,55 @@
 - name: Install Java, Jenkins, and Terraform on Ubuntu EC2
   hosts: all # <<-- IMPORTANT: Replace with your inventory group name or IP
   become: yes # Run all tasks with sudo privileges
-
+  # Add this to ensure Ansible uses python3 on the remote host
   vars:
+    ansible_python_interpreter: /usr/bin/python3
     java_version: "openjdk-21-jre"
     jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
     jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
     terraform_version: "1.6.5"
-    terraform_arch: "linux_amd64" # <<-- IMPORTANT: Changed from 'linux_386' to 'linux_amd64' as 386 is rarely used for EC2.
+    terraform_arch: "linux_amd64"
 
   tasks:
+    # --- Critical: Ensure Python environment is healthy ---
+    - name: Ensure Python development headers and pip are installed via apt
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes # Ensure apt cache is updated before installing python packages
+      loop:
+        - python3-pip
+        - python3-dev
+        - build-essential # Often needed for compiling Python packages
+
+    - name: Upgrade pip itself using pip3 (essential for clean upgrades)
+      ansible.builtin.command: python3 -m pip install --upgrade pip
+      changed_when: false # This command itself doesn't change system state but upgrades pip
+
+    - name: Upgrade core Python HTTP/SSL libraries (urllib3, requests, pyOpenSSL)
+      ansible.builtin.pip:
+        name: "{{ item }}"
+        state: latest
+        executable: pip3 # Explicitly use pip3
+      loop:
+        - urllib3
+        - requests
+        - pyopenssl
+        - cryptography # Often a dependency of pyOpenSSL, can cause issues if outdated
+
+    - name: Check urllib3, requests, and pyOpenSSL versions (for debugging)
+      ansible.builtin.command: python3 -c "import urllib3; import requests; import OpenSSL; print(f'urllib3: {urllib3.__version__}'); print(f'requests: {requests.__version__}'); print(f'pyOpenSSL: {OpenSSL.__version__}')"
+      register: python_libs_versions_check
+      changed_when: false
+    - name: Display Python library versions
+      ansible.builtin.debug:
+        var: python_libs_versions_check.stdout_lines
+
     # --- System Update and Java Installation ---
-    - name: Update apt cache
+    - name: Update apt cache (initial)
       ansible.builtin.apt:
         update_cache: yes
-        cache_valid_time: 3600 # Keep cache valid for 1 hour
+        cache_valid_time: 3600
 
     - name: Install fontconfig and Java ({{ java_version }})
       ansible.builtin.apt:
@@ -26,23 +61,15 @@
         - "{{ java_version }}"
 
     - name: Verify Java version
-      ansible.builtin.command: java -version
+      ansible.builtin.command:
+        _raw_params: java -version
       register: java_version_output
       changed_when: false
-      args:
-        # REMOVED: warn: false
-        _raw_params: java -version # Use _raw_params if the command is a simple string
-
     - name: Display Java version
       ansible.builtin.debug:
-        var: java_version_output.stderr # java -version often outputs to stderr
+        var: java_version_output.stderr
 
     # --- Jenkins Installation ---
-    - name: Pause for 30 seconds before installing Jenkins (as per script)
-      ansible.builtin.pause:
-        seconds: 30
-      when: false
-
     - name: Ensure /usr/share/keyrings directory exists
       ansible.builtin.file:
         path: /usr/share/keyrings
@@ -71,11 +98,6 @@
         - Start and Enable Jenkins
 
     # --- Terraform Installation ---
-    - name: Pause for 30 seconds before installing Terraform (as per script)
-      ansible.builtin.pause:
-        seconds: 30
-      when: false
-
     - name: Install unzip
       ansible.builtin.apt:
         name: unzip
@@ -95,13 +117,10 @@
         creates: /usr/local/bin/terraform
 
     - name: Verify Terraform installation
-      ansible.builtin.command: terraform version
+      ansible.builtin.command:
+        _raw_params: terraform version
       register: terraform_version_output
       changed_when: false
-      args:
-        # REMOVED: warn: false
-        _raw_params: terraform version # Use _raw_params if the command is a simple string
-
     - name: Display Terraform version
       ansible.builtin.debug:
         var: terraform_version_output.stdout_lines
