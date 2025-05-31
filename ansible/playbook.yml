@@ -27,6 +27,11 @@
           - python3-requests
           - "{{ java_package }}" # Install Java here as well
 
+    - name: Upgrade python3-requests to latest version
+      ansible.builtin.apt:
+        name: python3-requests
+        state: latest
+
     # The original script had a 30-second sleep after Java install.
     # In Ansible, explicit waits like 'sleep' are often unnecessary because
     # tasks run sequentially and modules are designed to wait for their
