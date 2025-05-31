@@ -22,6 +22,7 @@
     - name: Wait for 30 seconds before installing Jenkins
       pause:
         seconds: 30
+        echo: false
 
     - name: Download Jenkins keyring
       get_url:
@@ -43,9 +44,10 @@
       apt:
         name: jenkins
         state: present
-
     - name: Wait for 30 seconds before installing Terraform
       pause:
+        seconds: 30
+        echo: false
         seconds: 30
 
     - name: Install unzip
