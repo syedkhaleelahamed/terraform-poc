@@ -26,6 +26,7 @@
     - name: Wait for 30 seconds before installing Jenkins
       pause:
         seconds: 30
+        echo: no
 
     - name: Check Java version
       command: java -version
@@ -54,14 +55,15 @@
         name: jenkins
         state: present
         force: yes
-
     - name: Wait for 30 seconds after Jenkins installation
       pause:
         seconds: 30
-
+        echo: no
     - name: Wait for 30 seconds before installing Terraform
       pause:
         seconds: 30
+        echo: no
+  
 
     - name: Download Terraform zip
       get_url:
