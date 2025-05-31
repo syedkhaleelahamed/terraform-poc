@@ -5,6 +5,8 @@
   vars:
     apache_pkg: apache2
     web_root: /var/www/html
+    jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
+    jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
 
   tasks:
     - name: Update APT cache
