@@ -5,35 +5,78 @@
 
   tasks:
     - name: Update apt cache
-      apt:
+      ansible.builtin.apt:
         update_cache: yes
+        cache_valid_time: 3600 # Keep cache valid for 1 hour to avoid frequent updates
 
-    - name: Install Java (Jenkins dependency)
-      apt:
-        name: openjdk-11-jdk
+    - name: Install fontconfig and openjdk-21-jre
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present # Ensures the package is installed
+        force: yes
+      loop:
+        - fontconfig
+        - openjdk-21-jre
+
+    # --- Jenkins Installation Steps ---
+    - name: Ensure /etc/apt/keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Jenkins GPG key
+      ansible.builtin.get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        mode: '0644'
+        force: yes # Overwrite if it exists, ensures current key
+
+    - name: Add Jenkins apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
         state: present
-
-    - name: Add Jenkins repository key
-      apt_key:
-        url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
-        state: present
-
-    - name: Add Jenkins repository
-      apt_repository:
-        repo: deb https://pkg.jenkins.io/debian-stable binary/
-        state: present
-
-    - name: Update apt cache after adding Jenkins repo
-      apt:
-        update_cache: yes
+        filename: jenkins
+        update_cache: yes # Update cache after adding new repo
 
     - name: Install Jenkins
-      apt:
+      ansible.builtin.apt:
         name: jenkins
         state: present
+      notify:
+        - Start and Enable Jenkins
 
-    - name: Ensure Jenkins is started and enabled
-      systemd:
+    # --- Terraform Installation Steps ---
+    - name: Install unzip (required for Terraform installation method)
+      ansible.builtin.apt:
+        name: unzip
+        state: present
+
+    - name: Download Terraform
+      ansible.builtin.get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "/tmp/terraform_{{ terraform_version }}_linux_amd64.zip"
+        mode: '0644'
+
+    - name: Unzip Terraform to /usr/local/bin
+      ansible.builtin.unarchive:
+        src: "/tmp/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "/usr/local/bin/"
+        remote_src: yes # Source is on the remote machine
+
+    - name: Verify Terraform installation
+      ansible.builtin.command: terraform version
+      register: terraform_version_output
+      changed_when: false
+      args:
+        warn: false
+    - name: Display Terraform version
+      ansible.builtin.debug:
+        var: terraform_version_output.stdout_lines
+
+  handlers:
+    - name: Start and Enable Jenkins
+      ansible.builtin.systemd:
         name: jenkins
         state: started
         enabled: yes
