@@ -9,7 +9,6 @@
     jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
     terraform_version: "1.6.5"
     terraform_arch: "linux_amd64" # <<-- IMPORTANT: Changed from 'linux_386' to 'linux_amd64' as 386 is rarely used for EC2.
-                                  # If your EC2 instance is truly 32-bit (highly unlikely for new EC2), change back to linux_386.
 
   tasks:
     # --- System Update and Java Installation ---
@@ -31,7 +30,9 @@
       register: java_version_output
       changed_when: false
       args:
-        warn: false
+        # REMOVED: warn: false
+        _raw_params: java -version # Use _raw_params if the command is a simple string
+
     - name: Display Java version
       ansible.builtin.debug:
         var: java_version_output.stderr # java -version often outputs to stderr
@@ -40,9 +41,7 @@
     - name: Pause for 30 seconds before installing Jenkins (as per script)
       ansible.builtin.pause:
         seconds: 30
-      when: false # Recommended to keep this commented out or set to false in real automation
-                  # unless there's a specific, proven dependency that needs time.
-                  # Ansible's handlers and task dependencies are usually better.
+      when: false
 
     - name: Ensure /usr/share/keyrings directory exists
       ansible.builtin.file:
@@ -55,14 +54,14 @@
         url: "{{ jenkins_gpg_key_url }}"
         dest: /usr/share/keyrings/jenkins-keyring.asc
         mode: '0644'
-        force: yes # Overwrite if it exists, ensures current key
+        force: yes
 
     - name: Add Jenkins apt repository
       ansible.builtin.apt_repository:
         repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
         state: present
         filename: jenkins
-        update_cache: yes # Run apt update after adding the repo
+        update_cache: yes
 
     - name: Install Jenkins
       ansible.builtin.apt:
@@ -75,7 +74,7 @@
     - name: Pause for 30 seconds before installing Terraform (as per script)
       ansible.builtin.pause:
         seconds: 30
-      when: false # Recommended to keep this commented out or set to false in real automation
+      when: false
 
     - name: Install unzip
       ansible.builtin.apt:
@@ -92,15 +91,17 @@
       ansible.builtin.unarchive:
         src: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
         dest: "/usr/local/bin/"
-        remote_src: yes # Source is on the remote machine
-        creates: /usr/local/bin/terraform # Idempotency check: don't unzip if terraform already exists
+        remote_src: yes
+        creates: /usr/local/bin/terraform
 
     - name: Verify Terraform installation
       ansible.builtin.command: terraform version
       register: terraform_version_output
       changed_when: false
       args:
-        warn: false
+        # REMOVED: warn: false
+        _raw_params: terraform version # Use _raw_params if the command is a simple string
+
     - name: Display Terraform version
       ansible.builtin.debug:
         var: terraform_version_output.stdout_lines
