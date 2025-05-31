@@ -1,63 +1,104 @@
 ---
-- name: Install Jenkins and Terraform
+- name: Install Java, Jenkins, Terraform, and Ansible on Ubuntu EC2
   hosts: all
   become: yes
 
-  tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
+  vars:
+    java_version: "openjdk-21-jdk-headless"
+    jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
+    jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
+    terraform_version: "1.6.5"
+    terraform_arch: "linux_amd64"
 
-    - name: Install fontconfig and OpenJDK 21 JRE
-      apt:
+  tasks:
+    # --- System Update and Java Installation ---
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install fontconfig and Java ({{ java_version }})
+      ansible.builtin.apt:
         name:
           - fontconfig
-          - openjdk-21-jre
+          - "{{ java_version }}"
+        state: present
+        force: yes
+
+    - name: Verify Java version
+      ansible.builtin.command: java -version
+      register: java_version_output
+      changed_when: false
+
+    - name: Display Java version
+      ansible.builtin.debug:
+        var: java_version_output.stderr
+
+    # --- Install Ansible ---
+    - name: Install Ansible
+      ansible.builtin.apt:
+        name: ansible
         state: present
 
-    - name: Wait for 30 seconds before installing Jenkins
-      pause:
-        seconds: 30
+    # --- Jenkins Installation ---
+    - name: Ensure /usr/share/keyrings directory exists
+      ansible.builtin.file:
+        path: /usr/share/keyrings
+        state: directory
+        mode: '0755'
 
-    - name: Download Jenkins keyring
-      get_url:
-        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    - name: Download Jenkins GPG key
+      ansible.builtin.get_url:
+        url: "{{ jenkins_gpg_key_url }}"
         dest: /usr/share/keyrings/jenkins-keyring.asc
         mode: '0644'
+        force: yes
 
     - name: Add Jenkins apt repository
-      apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
         state: present
         filename: jenkins
-
-    - name: Update apt cache after adding Jenkins repo
-      apt:
         update_cache: yes
 
     - name: Install Jenkins
-      apt:
+      ansible.builtin.apt:
         name: jenkins
         state: present
+      notify:
+        - Start and Enable Jenkins
 
-    - name: Wait for 30 seconds before installing Terraform
-      pause:
-        seconds: 30
-
-    - name: Download Terraform zip
-      get_url:
-        url: https://releases.hashicorp.com/terraform/1.6.5/terraform_1.6.5_linux_386.zip
-        dest: /tmp/terraform_1.6.5_linux_386.zip
-
+    # --- Terraform Installation ---
     - name: Install unzip
-      apt:
+      ansible.builtin.apt:
         name: unzip
         state: present
 
-    - name: Unzip Terraform
-      unarchive:
-        src: /tmp/terraform_1.6.5_linux_386.zip
-        dest: /usr/local/bin/
+    - name: Download Terraform
+      ansible.builtin.get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        dest: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        mode: '0644'
+
+    - name: Unzip Terraform to /usr/local/bin
+      ansible.builtin.unarchive:
+        src: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        dest: "/usr/local/bin/"
         remote_src: yes
-        mode: '0755'
         creates: /usr/local/bin/terraform
+
+    - name: Verify Terraform installation
+      ansible.builtin.command: terraform version
+      register: terraform_version_output
+      changed_when: false
+
+    - name: Display Terraform version
+      ansible.builtin.debug:
+        var: terraform_version_output.stdout_lines
+
+  handlers:
+    - name: Start and Enable Jenkins
+      ansible.builtin.systemd:
+        name: jenkins
+        state: started
+        enabled: yes
