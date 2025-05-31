@@ -1,6 +1,6 @@
 ---
 - name: Install Jenkins and Terraform on Ubuntu EC2
-  hosts: webservers
+  hosts: all
   become: yes # This allows Ansible to use sudo for commands that require root privileges
   vars:
     jenkins_port: 8080
