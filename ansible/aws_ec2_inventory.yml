@@ -1,1 +1,9 @@
-
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Env:
+    - demo-instance
+  instance-state-name:
+    - running
+host_key_checks: False
