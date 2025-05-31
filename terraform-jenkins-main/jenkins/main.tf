@@ -7,7 +7,7 @@ variable "enable_public_ip_address" {}
 
 
 output "jenkins_ec2_instance_id" {
-  value = aws_instance.jenkins_ec2_instance.id
+  value = aws_instance.jenkins_ec2_instance_ip.id
 }
 
 output "private_key_pem" {
@@ -19,7 +19,7 @@ output "private_key_pem" {
 }
 
 output "dev_proj_1_ec2_instance_public_ip" {
-  value = aws_instance.jenkins_ec2_instance.public_ip
+  value = aws_instance.jenkins_ec2_instance_ip.public_ip
 }
 
 
@@ -47,7 +47,7 @@ resource "aws_key_pair" "demo_keypair" {
   public_key = tls_private_key.demo_key.public_key_openssh
 }
 
-resource "aws_instance" "jenkins_ec2_instance" {
+resource "aws_instance" "jenkins_ec2_instance_ip" {
   ami           = var.ami_id
   instance_type = var.instance_type
   tags = {
