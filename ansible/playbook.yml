@@ -4,7 +4,7 @@
   become: yes
 
   vars:
-    java_version: "openjdk-21-jdk-headless"
+    java_version: "openjdk-21-jre"
     jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
     jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
     terraform_version: "1.6.5"
@@ -24,22 +24,13 @@
           - "{{ java_version }}"
         state: present
         force: yes
-
-    - name: Verify Java version
+    - name: Verify Java installation
       ansible.builtin.command: java -version
       register: java_version_output
       changed_when: false
-
     - name: Display Java version
       ansible.builtin.debug:
-        var: java_version_output.stderr
-
-    # --- Install Ansible ---
-    - name: Install Ansible
-      ansible.builtin.apt:
-        name: ansible
-        state: present
-
+        var: java_version_output.stdout_lines
     # --- Jenkins Installation ---
     - name: Ensure /usr/share/keyrings directory exists
       ansible.builtin.file:
@@ -65,6 +56,14 @@
       ansible.builtin.apt:
         name: jenkins
         state: present
+        force: yes
+    - name: Verify Jenkins installation
+      ansible.builtin.command: jenkins --version
+      register: jenkins_version_output
+      changed_when: false
+    - name: Display Jenkins version
+      ansible.builtin.debug:
+        var: jenkins_version_output.stdout_lines
       notify:
         - Start and Enable Jenkins
 
