@@ -6,21 +6,6 @@ variable "sg_for_jenkins" {}
 variable "enable_public_ip_address" {}
 
 
-output "jenkins_ec2_instance_id" {
-  value = aws_instance.jenkins_ec2_instance_ip.id
-}
-
-output "private_key_pem" {
-
-  description = "Private key PEM for the EC2 instance"
-  sensitive   = true
-  value = aws_ssm_parameter.private_key.value
-  
-}
-
-output "dev_proj_1_ec2_instance_public_ip" {
-  value = aws_instance.jenkins_ec2_instance_ip.public_ip
-}
 
 
 # Generate SSH key pair
@@ -58,4 +43,20 @@ resource "aws_instance" "jenkins_ec2_instance_ip" {
   vpc_security_group_ids      = var.sg_for_jenkins
   associate_public_ip_address = var.enable_public_ip_address
 
+}
+
+output "jenkins_ec2_instance_id" {
+  value = aws_instance.jenkins_ec2_instance_ip.id
+}
+
+output "private_key_pem" {
+
+  description = "Private key PEM for the EC2 instance"
+  sensitive   = true
+  value = aws_ssm_parameter.private_key.value
+  
+}
+
+output "dev_proj_1_ec2_instance_public_ip" {
+  value = aws_instance.jenkins_ec2_instance_ip.public_ip
 }
