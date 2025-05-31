@@ -24,6 +24,7 @@
           - apt-transport-https
           - gnupg2
           - fontconfig
+          - python3-requests
           - "{{ java_package }}" # Install Java here as well
 
     # The original script had a 30-second sleep after Java install.
