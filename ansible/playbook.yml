@@ -1,38 +1,26 @@
 ---
-- name: Jenkins and Terraform Installer
+- name: Install Jenkins on Ubuntu EC2 Instance
   hosts: all
   become: yes
+
   tasks:
     - name: Update apt cache
       apt:
         update_cache: yes
 
-    - name: Install fontconfig and OpenJDK 21 JRE
+    - name: Install Java (Jenkins dependency)
       apt:
-        name:
-          - fontconfig
-          - openjdk-21-jre
+        name: openjdk-11-jdk
         state: present
 
-    - name: Check Java version
-      command: java -version
-      register: java_version
-      ignore_errors: yes
+    - name: Add Jenkins repository key
+      apt_key:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+        state: present
 
-    - name: Wait for 30 seconds before installing Jenkins
-      pause:
-        seconds: 30
-
-    - name: Download Jenkins keyring
-      get_url:
-        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-        dest: /usr/share/keyrings/jenkins-keyring.asc
-        mode: '0644'
-
-    - name: Add Jenkins apt repository
+    - name: Add Jenkins repository
       apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
-        filename: jenkins
+        repo: deb https://pkg.jenkins.io/debian-stable binary/
         state: present
 
     - name: Update apt cache after adding Jenkins repo
@@ -44,25 +32,8 @@
         name: jenkins
         state: present
 
-    - name: Wait for 30 seconds before installing Terraform
-      pause:
-        seconds: 30
-
-    - name: Download Terraform zip
-      get_url:
-        url: https://releases.hashicorp.com/terraform/1.6.5/terraform_1.6.5_linux_386.zip
-        dest: /tmp/terraform_1.6.5_linux_386.zip
-        mode: '0644'
-
-    - name: Install unzip
-      apt:
-        name: unzip
-        state: present
-
-    - name: Unzip Terraform
-      unarchive:
-        src: /tmp/terraform_1.6.5_linux_386.zip
-        dest: /usr/local/bin/
-        remote_src: yes
-        mode: '0755'
-        creates: /usr/local/bin/terraform
+    - name: Ensure Jenkins is started and enabled
+      systemd:
+        name: jenkins
+        state: started
+        enabled: yes
