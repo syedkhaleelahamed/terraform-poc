@@ -33,22 +33,22 @@
       register: java_version_output # Store the command's output in this variable
       changed_when: false # This task doesn't change anything on the system, so mark it as 'ok' 
    # --- Jenkins Installation ---
-    - name: Ensure /usr/share/keyrings directory exists
+    - name: Ensure /etc/apt/keyrings directory exists
       ansible.builtin.file:
-        path: /usr/share/keyrings
+        path: /etc/apt/keyrings
         state: directory
         mode: '0755'
 
     - name: Download Jenkins GPG key
       ansible.builtin.get_url:
         url: "{{ jenkins_gpg_key_url }}"
-        dest: /usr/share/keyrings/jenkins-keyring.asc
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
         mode: '0644'
         force: yes
 
     - name: Add Jenkins apt repository
       ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
+        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
         state: present
         filename: jenkins
         update_cache: yes
