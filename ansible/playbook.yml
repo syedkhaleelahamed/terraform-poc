@@ -1,6 +1,6 @@
 ---
 - name: Install Java, Jenkins, and Terraform on Ubuntu EC2
-  hosts: your_target_hosts # <<-- IMPORTANT: Replace with your inventory group name or IP
+  hosts: all # <<-- IMPORTANT: Replace with your inventory group name or IP
   become: yes # Run all tasks with sudo privileges
 
   vars:
