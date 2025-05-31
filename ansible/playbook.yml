@@ -1,45 +1,61 @@
 ---
-- name: Configure Apache on Ubuntu EC2
+- name: Install Jenkins and Terraform
   hosts: all
   become: yes
-  vars:
-    apache_pkg: apache2
-    web_root: /var/www/html
 
   tasks:
-    - name: Update APT cache
+    - name: Update apt cache
       apt:
         update_cache: yes
-        cache_valid_time: 3600
 
-    - name: Install Apache package
+    - name: Install OpenJDK 11
       apt:
-        name: "{{ apache_pkg }}"
+        name: openjdk-11-jdk-headless
         state: present
 
-    - name: Ensure Apache is running & enabled
-      service:
-        name: "{{ apache_pkg }}"
-        state: started
-        enabled: yes
-      when: not ansible_check_mode  # Skip this task when in check mode
+    - name: Wait for 30 seconds before installing Jenkins
+      pause:
+        seconds: 30
 
-    - name: Deploy custom index.html
-      copy:
-        dest: "{{ web_root }}/index.html"
-        content: |
-          <!DOCTYPE html>
-          <html>
-          <body>
-            <h1>Hello from Ansible!</h1>
-            <p>Deployed via Spacelift</p>
-          </body>
-          </html>
-      notify: Reload Apache
+    - name: Download Jenkins keyring
+      get_url:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+        mode: '0644'
 
-  handlers:
-    - name: Reload Apache
-      service:
-        name: "{{ apache_pkg }}"
-        state: reloaded
-      when: not ansible_check_mode  # Also skip the handler when in check mode
+    - name: Add Jenkins apt repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+        state: present
+        filename: jenkins
+
+    - name: Update apt cache after adding Jenkins repo
+      apt:
+        update_cache: yes
+
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+
+    - name: Wait for 30 seconds before installing Terraform
+      pause:
+        seconds: 30
+
+    - name: Download Terraform zip
+      get_url:
+        url: https://releases.hashicorp.com/terraform/1.6.5/terraform_1.6.5_linux_386.zip
+        dest: /tmp/terraform_1.6.5_linux_386.zip
+
+    - name: Install unzip
+      apt:
+        name: unzip
+        state: present
+
+    - name: Unzip Terraform
+      unarchive:
+        src: /tmp/terraform_1.6.5_linux_386.zip
+        dest: /usr/local/bin/
+        remote_src: yes
+        mode: '0755'
+        creates: /usr/local/bin/terraform
