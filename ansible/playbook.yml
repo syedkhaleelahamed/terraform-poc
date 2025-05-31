@@ -1,103 +1,59 @@
 ---
-- name: Install Java, Jenkins, Terraform, and Ansible on Ubuntu EC2
+- name: Configure Apache on Ubuntu EC2
   hosts: all
   become: yes
-
   vars:
-    java_version: "openjdk-21-jre"
-    jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
-    jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/"
-    terraform_version: "1.6.5"
-    terraform_arch: "linux_amd64"
+    apache_pkg: apache2
+    web_root: /var/www/html
 
   tasks:
-    # --- System Update and Java Installation ---
-    - name: Update apt cache
-      ansible.builtin.apt:
+    - name: Update APT cache
+      apt:
         update_cache: yes
         cache_valid_time: 3600
 
-    - name: Install fontconfig and Java ({{ java_version }})
+    - name: Install Apache package
+      apt:
+        name: "{{ apache_pkg }}"
+        state: present
+    - name: Install required packages (openjdk-21-jre, fontconfig)
       ansible.builtin.apt:
-        name:
-          - fontconfig
-          - "{{ java_version }}"
-        state: present
-        force: yes
-    - name: Verify Java installation
-      ansible.builtin.command: java -version
-      register: java_version_output
-      changed_when: false
-    - name: Display Java version
-      ansible.builtin.debug:
-        var: java_version_output.stdout_lines
-    # --- Jenkins Installation ---
-    - name: Ensure /usr/share/keyrings directory exists
-      ansible.builtin.file:
-        path: /usr/share/keyrings
-        state: directory
-        mode: '0755'
+        name: "{{ item }}"
+        state: present # Ensures the package is installed
+      loop:
+        - openjdk-21-jre
+        - fontconfig
 
-    - name: Download Jenkins GPG key
-      ansible.builtin.get_url:
-        url: "{{ jenkins_gpg_key_url }}"
-        dest: /usr/share/keyrings/jenkins-keyring.asc
-        mode: '0644'
-        force: yes
-
-    - name: Add Jenkins apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
-        state: present
-        filename: jenkins
-        update_cache: yes
-
-    - name: Install Jenkins
-      ansible.builtin.apt:
-        name: jenkins
-        state: present
-        force: yes
-    - name: Verify Jenkins installation
-      ansible.builtin.command: jenkins --version
-      register: jenkins_version_output
-      changed_when: false
-    - name: Display Jenkins version
-      ansible.builtin.debug:
-        var: jenkins_version_output.stdout_lines
-      notify:
-        - Start and Enable Jenkins
-
-    # --- Terraform Installation ---
-    - name: Install unzip
-      ansible.builtin.apt:
-        name: unzip
-        state: present
-
-    - name: Download Terraform
-      ansible.builtin.get_url:
-        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        dest: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        mode: '0644'
-
-    - name: Unzip Terraform to /usr/local/bin
-      ansible.builtin.unarchive:
-        src: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        dest: "/usr/local/bin/"
-        remote_src: yes
-        creates: /usr/local/bin/terraform
-
-    - name: Verify Terraform installation
-      ansible.builtin.command: terraform version
-      register: terraform_version_output
-      changed_when: false
-
-    - name: Display Terraform version
-      ansible.builtin.debug:
-        var: terraform_version_output.stdout_lines
-
-  handlers:
-    - name: Start and Enable Jenkins
-      ansible.builtin.systemd:
-        name: jenkins
+    # --- New Task: Check Java Version ---
+    - name: Verify Java version
+      ansible.builtin.command:
+        _raw_params: java -version # The command to execute
+      register: java_version_output # Store the command's output in this variable
+      changed_when: false # This task doesn't change anything on the system, so mark it as 'ok' 
+      
+    - name: Ensure Apache is running & enabled
+      service:
+        name: "{{ apache_pkg }}"
         state: started
         enabled: yes
+      when: not ansible_check_mode  # Skip this task when in check mode
+
+    - name: Deploy custom index.html
+      copy:
+        dest: "{{ web_root }}/index.html"
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <body>
+            <h1>Hello from Ansible!</h1>
+            <p>Deployed via Spacelift</p>
+          </body>
+          </html>
+      notify: Reload Apache
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: "{{ apache_pkg }}"
+        state: reloaded
+      when: not ansible_check_mode  # Also skip the handler when in check mode
