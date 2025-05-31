@@ -30,6 +30,42 @@
         _raw_params: java -version # The command to execute
       register: java_version_output # Store the command's output in this variable
       changed_when: false # This task doesn't change anything on the system, so mark it as 'ok' 
+   # --- Jenkins Installation ---
+    - name: Ensure /usr/share/keyrings directory exists
+      ansible.builtin.file:
+        path: /usr/share/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Jenkins GPG key
+      ansible.builtin.get_url:
+        url: "{{ jenkins_gpg_key_url }}"
+        dest: /usr/share/keyrings/jenkins-keyring.asc
+        mode: '0644'
+        force: yes
+
+    - name: Add Jenkins apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
+        state: present
+        filename: jenkins
+        update_cache: yes
+
+    - name: Install Jenkins
+      ansible.builtin.apt:
+        name: jenkins
+        state: present
+        force: yes
+    - name: Verify Jenkins installation
+      ansible.builtin.command: jenkins --version
+      register: jenkins_version_output
+      changed_when: false
+    - name: Display Jenkins version
+      ansible.builtin.debug:
+        var: jenkins_version_output.stdout_lines
+      notify:
+        - Start and Enable Jenkins
+    
       
     - name: Ensure Apache is running & enabled
       service:
