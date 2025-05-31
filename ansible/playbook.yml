@@ -28,12 +28,11 @@
         state: directory
         mode: '0755'
 
-    - name: Download Jenkins GPG key
-      ansible.builtin.get_url:
+    - name: Add Jenkins GPG key
+      ansible.builtin.apt_key:
         url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-        dest: /etc/apt/keyrings/jenkins-keyring.asc
-        mode: '0644'
-        force: yes # Overwrite if it exists, ensures current key
+        keyring: /etc/apt/keyrings/jenkins-keyring.asc
+        state: present
 
     - name: Add Jenkins apt repository
       ansible.builtin.apt_repository:
