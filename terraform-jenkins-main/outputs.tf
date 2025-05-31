@@ -3,5 +3,5 @@ output "key_ssm_param" {
 }
 
 output "public_ip" {
-  value = aws_instance.demo_instance.public_ip
+  value = aws_instance.jenkins_ec2_instance_ip.public_ip
 }
