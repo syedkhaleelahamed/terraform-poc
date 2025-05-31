@@ -7,33 +7,6 @@
     terraform_version: "1.8.5"
 
   tasks:
-    # --- SOLUTION: Update Python packages on target ---
-    - name: Update apt cache before installing Python packages
-      ansible.builtin.apt:
-        update_cache: yes
-
-    - name: Ensure Python development headers and pip are installed
-      ansible.builtin.apt:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - python3-pip
-        - python3-dev
-        - build-essential # Often needed for compiling Python packages
-
-    - name: Upgrade pip, setuptools, and urllib3 to latest versions
-      ansible.builtin.pip:
-        name: "{{ item }}"
-        state: latest
-        executable: pip3 # Ensure we use pip3
-      loop:
-        - pip
-        - setuptools
-        - urllib3
-        - requests # requests also uses urllib3
-        - pyopenssl # Sometimes required for newer SSL features
-      # You might need to specify a precise version if 'latest' causes other issues, e.g., version: "1.26.1" for urllib3
-
     - name: Update apt cache
       ansible.builtin.apt:
         update_cache: yes
