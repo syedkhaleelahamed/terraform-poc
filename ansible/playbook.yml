@@ -8,6 +8,10 @@
 
   tasks:
     # --- SOLUTION: Update Python packages on target ---
+    - name: Update apt cache before installing Python packages
+      ansible.builtin.apt:
+        update_cache: yes
+
     - name: Ensure Python development headers and pip are installed
       ansible.builtin.apt:
         name: "{{ item }}"
