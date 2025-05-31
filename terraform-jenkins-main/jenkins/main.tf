@@ -57,6 +57,6 @@ output "private_key_pem" {
   
 }
 
-output "dev_proj_1_ec2_instance_public_ip" {
+output "public_ip" {
   value = aws_instance.jenkins_ec2_instance_ip.public_ip
 }
