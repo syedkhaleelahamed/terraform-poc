@@ -42,12 +42,19 @@
         state: directory
         mode: '0755'
 
-    - name: Download Jenkins GPG key
+    - name: Download Jenkins GPG key to /tmp
       ansible.builtin.get_url:
         url: "{{ jenkins_gpg_key_url }}"
-        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        dest: /tmp/jenkins-keyring.asc
         mode: '0644'
         force: yes # Overwrite if it exists, ensures current key
+
+    - name: Move Jenkins GPG key to /etc/apt/keyrings
+      ansible.builtin.copy:
+        src: /tmp/jenkins-keyring.asc
+        dest: /etc/apt/keyrings/jenkins-keyring.asc
+        remote_src: yes
+        mode: '0644'
 
     - name: Add Jenkins apt repository
       ansible.builtin.apt_repository:
