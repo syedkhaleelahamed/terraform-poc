@@ -1,85 +1,105 @@
 ---
-- name: Install Jenkins and Terraform
-  hosts: all
-  become: yes
-  tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
+- name: Setup Java, Jenkins, and Terraform on Ubuntu
+  hosts: all # <--- IMPORTANT: Change this to your inventory group or host name
+  become: yes              # Run all tasks with sudo privileges
 
-    - name: Install required packages
-      apt:
+  vars:
+    # Set the desired versions and URLs here for easy updates
+    java_package: "openjdk-21-jre"
+    jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
+    jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+                       /etc/apt/sources.list.d/jenkins.list > /dev/null"
+    terraform_version: "1.6.5"
+    # IMPORTANT: 'linux_386' is for 32-bit systems, which are rare for EC2.
+    # Most EC2 instances are 64-bit. Change to 'linux_amd64' if applicable.
+    terraform_arch: "linux_386" # Change to "linux_amd64" for 64-bit EC2 instances
+
+  tasks:
+    - name: Update apt cache and install common prerequisites
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600 # Keep cache valid for 1 hour
         name:
           - wget
           - apt-transport-https
           - gnupg2
-        state: present
+          - fontconfig
+          - "{{ java_package }}" # Install Java here as well
 
-    - name: Install fontconfig and openjdk-21-jre
-      ansible.builtin.apt:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - fontconfig
-        - openjdk-21-jre
+    # The original script had a 30-second sleep after Java install.
+    # In Ansible, explicit waits like 'sleep' are often unnecessary because
+    # tasks run sequentially and modules are designed to wait for their
+    # dependencies to be ready. I'm keeping it commented out for now.
+    # - name: Wait for 30 seconds before proceeding (as per original script)
+    #   ansible.builtin.pause:
+    #     seconds: 30
+    #   when: false # Set to 'true' if you absolutely need this pause
 
-    - name: Wait for 30 seconds before installing Jenkins
-      pause:
-        seconds: 30
-        echo: no
+    
+    - name: Ensure /etc/apt/keyrings directory exists for Jenkins GPG key
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
 
-    - name: Check Java version
-      command: java -version
-      register: java_version
-      ignore_errors: yes
-
-    - name: Download Jenkins keyring
-      get_url:
-        url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    - name: Download Jenkins GPG key
+      ansible.builtin.get_url:
+        url: "{{ jenkins_gpg_key_url }}"
         dest: /etc/apt/keyrings/jenkins-keyring.asc
         mode: '0644'
+        force: yes # Overwrite if it exists, ensures current key
 
     - name: Add Jenkins apt repository
-      apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
-               /etc/apt/sources.list.d/jenkins.list > /dev/null"
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
         state: present
         filename: jenkins
-
-    - name: Update apt cache after adding Jenkins repo
-      apt:
-        update_cache: yes
+        update_cache: yes # Run apt update after adding the new repo
 
     - name: Install Jenkins
-      apt:
+      ansible.builtin.apt:
         name: jenkins
         state: present
-        force: yes
-    - name: Wait for 30 seconds after Jenkins installation
-      pause:
-        seconds: 30
-        echo: no
-    - name: Wait for 30 seconds before installing Terraform
-      pause:
-        seconds: 30
-        echo: no
-  
+        force: yes # Ensure Jenkins is installed, even if already present
+      notify:
+        - Start and Enable Jenkins # Trigger handler to start Jenkins after install
 
-    - name: Download Terraform zip
-      get_url:
-        url: https://releases.hashicorp.com/terraform/1.6.5/terraform_1.6.5_linux_386.zip
-        dest: /tmp/terraform_1.6.5_linux_386.zip
-        mode: '0644'
+    # The original script had a 30-second sleep after Jenkins install.
+    # - name: Wait for 30 seconds before proceeding to Terraform (as per original script)
+    #   ansible.builtin.pause:
+    #     seconds: 30
+    #   when: false # Set to 'true' if you absolutely need this pause
 
-    - name: Install unzip
-      apt:
+    - name: Install unzip (required for Terraform installation)
+      ansible.builtin.apt:
         name: unzip
         state: present
 
-    - name: Unzip Terraform
-      unarchive:
-        src: /tmp/terraform_1.6.5_linux_386.zip
-        dest: /usr/local/bin/
-        remote_src: yes
-        mode: '0755'
-        creates: /usr/local/bin/terraform
+    - name: Download Terraform archive
+      ansible.builtin.get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        dest: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        mode: '0644'
+
+    - name: Unzip Terraform and move to /usr/local/bin
+      ansible.builtin.unarchive:
+        src: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
+        dest: "/usr/local/bin/"
+        remote_src: yes # Source file is on the remote machine
+        creates: /usr/local/bin/terraform # Idempotency check: don't unzip if terraform already exists
+
+    - name: Verify Terraform installation
+      ansible.builtin.command:
+        _raw_params: terraform version
+      register: terraform_version_output
+      changed_when: false
+    - name: Display Terraform version
+      ansible.builtin.debug:
+        var: terraform_version_output.stdout_lines
+
+  handlers:
+    - name: Start and Enable Jenkins
+      ansible.builtin.systemd:
+        name: jenkins
+        state: started
+        enabled: yes
