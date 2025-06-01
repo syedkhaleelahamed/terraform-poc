@@ -17,15 +17,18 @@
 
   tasks:
         # --- Critical: Ensure Python environment is healthy ---
-    - name: Ensure Python development headers and pip are installed via apt
+    - name: Ensure python3-pip is installed
       ansible.builtin.apt:
-        name: "{{ item }}"
+        name: python3-pip
         state: present
-        update_cache: yes # Ensure apt cache is updated before installing python packages
-      loop:
-        - python3-pip
-        - python3-dev
-        - build-essential # Often needed for compiling Python packages
+        update_cache: yes
+
+    - name: Ensure Python development headers and build-essential are installed via apt
+      ansible.builtin.apt:
+        name:
+          - python3-dev
+          - build-essential
+        state: present
 
     - name: Upgrade pip itself using python3 -m pip (essential for clean upgrades)
       ansible.builtin.command: python3 -m pip install --upgrade pip
