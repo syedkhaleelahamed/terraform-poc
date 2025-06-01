@@ -40,28 +40,41 @@
       apt:
         name: jenkins
         state: present
-      notify: restart jenkins
+        update_cache: yes
+      check_mode: false
 
-    - name: Start Jenkins service
+    - name: Check if Jenkins service exists
+      command: systemctl status jenkins
+      register: jenkins_status
+      failed_when: false
+      changed_when: false
+      check_mode: false
+
+    - name: Start Jenkins service if it exists
       service:
         name: jenkins
         state: started
         enabled: yes
+      when: jenkins_status.rc == 0
 
-    - name: Wait for Jenkins to start up
+    - name: Wait for Jenkins to start up if service exists
       wait_for:
         port: "{{ jenkins_port }}"
         delay: 10
         timeout: 300
+      when: jenkins_status.rc == 0
 
-    - name: Get Jenkins initial admin password
+    - name: Get Jenkins initial admin password if service exists
       command: cat /var/lib/jenkins/secrets/initialAdminPassword
       register: jenkins_admin_password
       changed_when: false
+      failed_when: false
+      when: jenkins_status.rc == 0
 
-    - name: Display Jenkins initial admin password
+    - name: Display Jenkins initial admin password if available
       debug:
         msg: "Jenkins initial admin password: {{ jenkins_admin_password.stdout }}"
+      when: jenkins_status.rc == 0 and jenkins_admin_password.rc == 0
 
     - name: Configure Jenkins firewall
       ufw:
