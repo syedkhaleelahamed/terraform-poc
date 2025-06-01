@@ -21,14 +21,16 @@
          state: present
  
      - name: Add Jenkins repository key
-       apt_key:
-         url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
-         state: present
+       shell: |
+         curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+         args:
+            warn: false
  
      - name: Add Jenkins repository
-       apt_repository:
-         repo: deb https://pkg.jenkins.io/debian-stable binary/
-         state: present
+       shell: |
+         echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+         args:
+          warn: false
  
      - name: Install Jenkins
        apt:
@@ -79,5 +81,3 @@
        service:
          name: jenkins
          state: restarted
-
-
