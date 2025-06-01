@@ -16,21 +16,37 @@
     ansible_python_interpreter: /usr/bin/python3 # Ensure Ansible uses python3
 
   tasks:
-        # --- Critical: Ensure Python environment is healthy ---
-    - name: Ensure python3-pip is installed
+    - name: Update apt cache before installing python packages
       ansible.builtin.apt:
-        name: python3-pip
-        state: present
         update_cache: yes
+        cache_valid_time: 3600
+        # --- Critical: Ensure Python environment is healthy ---
 
-    - name: Ensure Python development headers and build-essential are installed via apt
+    - name: Ensure Python development headers and pip are installed via apt
       ansible.builtin.apt:
-        name:
-          - python3-dev
-          - build-essential
+        name: "{{ item }}"
         state: present
+        update_cache: yes # Ensure apt cache is updated before installing python packages
+      loop:
+        - python3-pip
+        - python3-dev
+        - build-essential # Often needed for compiling Python packages
 
-    - name: Upgrade pip itself using python3 -m pip (essential for clean upgrades)
+    # --- Robust Pip Management ---
+    - name: Verify pip3 executable path
+      ansible.builtin.command: which pip3
+      register: pip3_path_result
+      changed_when: false
+      failed_when: pip3_path_result.rc != 0
+      # This task will fail if pip3 is not found, which is what we want to diagnose
+
+    - name: Display pip3 path (for debugging)
+      ansible.builtin.debug:
+        var: pip3_path_result.stdout_lines
+      when: pip3_path_result.rc == 0
+
+    - name: Upgrade pip itself using python3 -m pip (most reliable way to ensure it's up-to-date)
+      # This bypasses potential PATH issues for the 'pip3' executable initially
       ansible.builtin.command: python3 -m pip install --upgrade pip
       changed_when: false # This command itself doesn't change system state but upgrades pip
 
@@ -38,12 +54,12 @@
       ansible.builtin.pip:
         name: "{{ item }}"
         state: latest
-        executable: pip3 # Explicitly use pip3
+        executable: pip3 # Explicitly use pip3, now that we've confirmed its path/existence
       loop:
         - urllib3
         - requests
         - pyopenssl
-        - cryptography # Often a dependency of pyOpenSSL, can cause issues if outdated
+        - cryptography
 
     - name: Display Python library versions
       ansible.builtin.debug:
