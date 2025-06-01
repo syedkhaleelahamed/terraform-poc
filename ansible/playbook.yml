@@ -13,8 +13,38 @@
     # IMPORTANT: 'linux_386' is for 32-bit systems, which are rare for EC2.
     # Most EC2 instances are 64-bit. Change to 'linux_amd64' if applicable.
     terraform_arch: "linux_386" # Change to "linux_amd64" for 64-bit EC2 instances
+    ansible_python_interpreter: /usr/bin/python3 # Ensure Ansible uses python3
 
   tasks:
+        # --- Critical: Ensure Python environment is healthy ---
+    - name: Ensure Python development headers and pip are installed via apt
+      ansible.builtin.apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes # Ensure apt cache is updated before installing python packages
+      loop:
+        - python3-pip
+        - python3-dev
+        - build-essential # Often needed for compiling Python packages
+
+    - name: Upgrade pip itself using python3 -m pip (essential for clean upgrades)
+      ansible.builtin.command: python3 -m pip install --upgrade pip
+      changed_when: false # This command itself doesn't change system state but upgrades pip
+
+    - name: Upgrade core Python HTTP/SSL libraries (urllib3, requests, pyOpenSSL, cryptography)
+      ansible.builtin.pip:
+        name: "{{ item }}"
+        state: latest
+        executable: pip3 # Explicitly use pip3
+      loop:
+        - urllib3
+        - requests
+        - pyopenssl
+        - cryptography # Often a dependency of pyOpenSSL, can cause issues if outdated
+
+    - name: Display Python library versions
+      ansible.builtin.debug:
+        var: python_libs_versions_check.stdout_lines
     - name: Update apt cache and install common prerequisites
       ansible.builtin.apt:
         update_cache: yes
