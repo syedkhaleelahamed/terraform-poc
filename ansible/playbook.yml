@@ -1,167 +1,83 @@
 ---
-- name: Setup Java, Jenkins, and Terraform on Ubuntu
-  hosts: all # <--- IMPORTANT: Change this to your inventory group or host name
-  become: yes              # Run all tasks with sudo privileges
+ # Ansible playbook to install and configure Jenkins on Ubuntu EC2 instance
+ - name: Install and Configure Jenkins on Ubuntu EC2
+   hosts: all  # Define this group in your inventory
+   become: true  # Use sudo privileges
+   vars:
+     jenkins_port: 8080
+ 
+   tasks:
+     - name: Update apt cache
+       apt:
+         update_cache: yes
+         cache_valid_time: 3600
+ 
+     - name: Install dependencies
+       apt:
+         name:
+           - openjdk-11-jdk
+           - apt-transport-https
+           - gnupg
+         state: present
+ 
+     - name: Add Jenkins repository key
+       apt_key:
+         url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+         state: present
+ 
+     - name: Add Jenkins repository
+       apt_repository:
+         repo: deb https://pkg.jenkins.io/debian-stable binary/
+         state: present
+ 
+     - name: Install Jenkins
+       apt:
+         name: jenkins
+         state: present
+       notify: restart jenkins
+ 
+     - name: Start Jenkins service
+       service:
+         name: jenkins
+         state: started
+         enabled: yes
+ 
+     - name: Wait for Jenkins to start up
+       wait_for:
+         port: "{{ jenkins_port }}"
+         delay: 10
+         timeout: 300
+ 
+     - name: Get Jenkins initial admin password
+       command: cat /var/lib/jenkins/secrets/initialAdminPassword
+       register: jenkins_admin_password
+       changed_when: false
+ 
+     - name: Display Jenkins initial admin password
+       debug:
+         msg: "Jenkins initial admin password: {{ jenkins_admin_password.stdout }}"
+ 
+     - name: Configure Jenkins firewall
+       ufw:
+         rule: allow
+         port: "{{ jenkins_port }}"
+         proto: tcp
+ 
+     - name: Allow SSH through firewall
+       ufw:
+         rule: allow
+         port: 22
+         proto: tcp
+ 
+     - name: Enable UFW
+       ufw:
+         state: enabled
+         policy: deny
+ 
+   handlers:
+     - name: restart jenkins
+       service:
+         name: jenkins
+         state: restarted
 
-  vars:
-    # Set the desired versions and URLs here for easy updates
-    java_package: "openjdk-21-jre"
-    jenkins_gpg_key_url: "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key"
-    jenkins_repo_url: "https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
-                       /etc/apt/sources.list.d/jenkins.list > /dev/null"
-    terraform_version: "1.6.5"
-    # IMPORTANT: 'linux_386' is for 32-bit systems, which are rare for EC2.
-    # Most EC2 instances are 64-bit. Change to 'linux_amd64' if applicable.
-    terraform_arch: "linux_386" # Change to "linux_amd64" for 64-bit EC2 instances
-    ansible_python_interpreter: /usr/bin/python3 # Ensure Ansible uses python3
 
-  tasks:
-    - name: Update apt cache before installing python packages
-      ansible.builtin.apt:
-        update_cache: yes
-        cache_valid_time: 3600
-        # --- Critical: Ensure Python environment is healthy ---
-
-    - name: Ensure Python development headers and pip are installed via apt
-      ansible.builtin.apt:
-        name: "{{ item }}"
-        state: present
-        update_cache: yes # Ensure apt cache is updated before installing python packages
-      loop:
-        - python3-pip
-        - python3-dev
-        - build-essential # Often needed for compiling Python packages
-
-    # --- Robust Pip Management ---
-    - name: Verify pip3 executable path
-      ansible.builtin.command: which pip3
-      register: pip3_path_result
-      changed_when: false
-      failed_when: pip3_path_result.rc != 0
-      # This task will fail if pip3 is not found, which is what we want to diagnose
-
-    - name: Display pip3 path (for debugging)
-      ansible.builtin.debug:
-        var: pip3_path_result.stdout_lines
-      when: pip3_path_result.rc == 0
-
-    - name: Upgrade pip itself using python3 -m pip (most reliable way to ensure it's up-to-date)
-      # This bypasses potential PATH issues for the 'pip3' executable initially
-      ansible.builtin.command: python3 -m pip install --upgrade pip
-      changed_when: false # This command itself doesn't change system state but upgrades pip
-
-    - name: Upgrade core Python HTTP/SSL libraries (urllib3, requests, pyOpenSSL, cryptography)
-      ansible.builtin.pip:
-        name: "{{ item }}"
-        state: latest
-        executable: pip3 # Explicitly use pip3, now that we've confirmed its path/existence
-      loop:
-        - urllib3
-        - requests
-        - pyopenssl
-        - cryptography
-
-    - name: Display Python library versions
-      ansible.builtin.debug:
-        var: python_libs_versions_check.stdout_lines
-    - name: Update apt cache and install common prerequisites
-      ansible.builtin.apt:
-        update_cache: yes
-        cache_valid_time: 3600 # Keep cache valid for 1 hour
-        name:
-          - wget
-          - apt-transport-https
-          - gnupg2
-          - fontconfig
-          - python3-requests
-          - "{{ java_package }}" # Install Java here as well
-
-    - name: Upgrade python3-requests to latest version
-      ansible.builtin.apt:
-        name: python3-requests
-        state: latest
-
-    # The original script had a 30-second sleep after Java install.
-    # In Ansible, explicit waits like 'sleep' are often unnecessary because
-    # tasks run sequentially and modules are designed to wait for their
-    # dependencies to be ready. I'm keeping it commented out for now.
-    # - name: Wait for 30 seconds before proceeding (as per original script)
-    #   ansible.builtin.pause:
-    #     seconds: 30
-    #   when: false # Set to 'true' if you absolutely need this pause
-
-    
-    - name: Ensure /etc/apt/keyrings directory exists for Jenkins GPG key
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: '0755'
-
-    - name: Download Jenkins GPG key to /tmp
-      ansible.builtin.get_url:
-        url: "{{ jenkins_gpg_key_url }}"
-        dest: /tmp/jenkins-keyring.asc
-        mode: '0644'
-        force: yes # Overwrite if it exists, ensures current key
-
-    - name: Move Jenkins GPG key to /etc/apt/keyrings
-      ansible.builtin.copy:
-        src: /tmp/jenkins-keyring.asc
-        dest: /etc/apt/keyrings/jenkins-keyring.asc
-        remote_src: yes
-        mode: '0644'
-
-    - name: Add Jenkins apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] {{ jenkins_repo_url }}"
-        state: present
-        filename: jenkins
-        update_cache: yes # Run apt update after adding the new repo
-
-    - name: Install Jenkins
-      ansible.builtin.apt:
-        name: jenkins
-        state: present
-        force: yes # Ensure Jenkins is installed, even if already present
-      notify:
-        - Start and Enable Jenkins # Trigger handler to start Jenkins after install
-
-    # The original script had a 30-second sleep after Jenkins install.
-    # - name: Wait for 30 seconds before proceeding to Terraform (as per original script)
-    #   ansible.builtin.pause:
-    #     seconds: 30
-    #   when: false # Set to 'true' if you absolutely need this pause
-
-    - name: Install unzip (required for Terraform installation)
-      ansible.builtin.apt:
-        name: unzip
-        state: present
-
-    - name: Download Terraform archive
-      ansible.builtin.get_url:
-        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        dest: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        mode: '0644'
-
-    - name: Unzip Terraform and move to /usr/local/bin
-      ansible.builtin.unarchive:
-        src: "/tmp/terraform_{{ terraform_version }}_{{ terraform_arch }}.zip"
-        dest: "/usr/local/bin/"
-        remote_src: yes # Source file is on the remote machine
-        creates: /usr/local/bin/terraform # Idempotency check: don't unzip if terraform already exists
-
-    - name: Verify Terraform installation
-      ansible.builtin.command:
-        _raw_params: terraform version
-      register: terraform_version_output
-      changed_when: false
-    - name: Display Terraform version
-      ansible.builtin.debug:
-        var: terraform_version_output.stdout_lines
-
-  handlers:
-    - name: Start and Enable Jenkins
-      ansible.builtin.systemd:
-        name: jenkins
-        state: started
-        enabled: yes
