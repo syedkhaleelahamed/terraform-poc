@@ -24,15 +24,11 @@
       shell: |
         mkdir -p /etc/apt/keyrings
         curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /etc/apt/keyrings/jenkins-keyring.asc > /dev/null
-      args:
-        warn: false
       check_mode: false
 
     - name: Add Jenkins repository
       shell: |
         echo "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-      args:
-        warn: false
       check_mode: false
 
     - name: Update apt cache after adding Jenkins repository
