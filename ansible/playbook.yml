@@ -12,6 +12,13 @@
         update_cache: yes
         cache_valid_time: 3600
 
+    # Added to ensure Universe repository is enabled
+    - name: Ensure Universe repository is enabled
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+        state: present
+
+    # Modified to be more robust with retries
     - name: Install dependencies
       apt:
         name:
@@ -19,6 +26,18 @@
           - apt-transport-https
           - gnupg
         state: present
+        update_cache: yes
+      register: java_install
+      retries: 3
+      delay: 5
+      until: java_install is success
+
+    # Fallback to default-jdk if openjdk-11-jdk fails
+    - name: Install default JDK as fallback
+      apt:
+        name: default-jdk
+        state: present
+      when: java_install is failed
 
     - name: Add Jenkins repository key
       shell: |
