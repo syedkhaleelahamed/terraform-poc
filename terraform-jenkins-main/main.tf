@@ -24,7 +24,7 @@ module "security_group" {
    sg_for_jenkins            = [module.security_group.sg_ec2_sg_ssh_http_id, module.security_group.sg_ec2_jenkins_port_8080]
    enable_public_ip_address  = true
  }
-/*
+
 module "lb_target_group" {
   source                   = "./load-balancer-target-group"
   lb_target_group_name     = "jenkins-lb-target-group"
@@ -33,7 +33,7 @@ module "lb_target_group" {
   vpc_id                   = module.networking.dev_proj_1_vpc_id
   ec2_instance_id          = module.jenkins.jenkins_ec2_instance_ip
 }
-
+/*
 module "alb" {
   source                    = "./load-balancer"
   lb_name                   = "dev-proj-1-alb"
