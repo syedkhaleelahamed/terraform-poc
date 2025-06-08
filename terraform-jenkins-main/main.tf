@@ -31,7 +31,7 @@ module "lb_target_group" {
   lb_target_group_port     = 8080
   lb_target_group_protocol = "HTTP"
   vpc_id                   = module.networking.dev_proj_1_vpc_id
-  ec2_instance_id          = module.jenkins.jenkins_ec2_instance_ip
+  ec2_instance_id          = module.jenkins.instance_id
 }
 /*
 module "alb" {
