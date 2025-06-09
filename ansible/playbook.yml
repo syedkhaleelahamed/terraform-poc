@@ -12,32 +12,14 @@
         update_cache: yes
         cache_valid_time: 3600
 
-    # Added to ensure Universe repository is enabled
-    - name: Ensure Universe repository is enabled
-      apt_repository:
-        repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
-        state: present
-
-    # Modified to be more robust with retries
     - name: Install dependencies
       apt:
         name:
-          - openjdk-11-jdk
+          - fontconfig
+          - openjdk-21-jre
           - apt-transport-https
           - gnupg
         state: present
-        update_cache: yes
-      register: java_install
-      retries: 3
-      delay: 5
-      until: java_install is success
-
-    # Fallback to default-jdk if openjdk-11-jdk fails
-    - name: Install default JDK as fallback
-      apt:
-        name: default-jdk
-        state: present
-      when: java_install is failed
 
     - name: Add Jenkins repository key
       shell: |
@@ -59,41 +41,28 @@
       apt:
         name: jenkins
         state: present
-        update_cache: yes
-      check_mode: false
+      notify: restart jenkins
 
-    - name: Check if Jenkins service exists
-      command: systemctl status jenkins
-      register: jenkins_status
-      failed_when: false
-      changed_when: false
-      check_mode: false
-
-    - name: Start Jenkins service if it exists
+    - name: Start Jenkins service
       service:
         name: jenkins
         state: started
         enabled: yes
-      when: jenkins_status.rc == 0
 
-    - name: Wait for Jenkins to start up if service exists
+    - name: Wait for Jenkins to start up
       wait_for:
         port: "{{ jenkins_port }}"
         delay: 10
         timeout: 300
-      when: jenkins_status.rc == 0
 
-    - name: Get Jenkins initial admin password if service exists
+    - name: Get Jenkins initial admin password
       command: cat /var/lib/jenkins/secrets/initialAdminPassword
       register: jenkins_admin_password
       changed_when: false
-      failed_when: false
-      when: jenkins_status.rc == 0
 
-    - name: Display Jenkins initial admin password if available
+    - name: Display Jenkins initial admin password
       debug:
         msg: "Jenkins initial admin password: {{ jenkins_admin_password.stdout }}"
-      when: jenkins_status.rc == 0 and jenkins_admin_password.rc == 0
 
     - name: Configure Jenkins firewall
       ufw:
