@@ -36,3 +36,53 @@
       apt:
         update_cache: yes
       check_mode: false
+      
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+      notify: restart jenkins
+
+    - name: Start Jenkins service
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Wait for Jenkins to start up
+      wait_for:
+        port: "{{ jenkins_port }}"
+        delay: 10
+        timeout: 300
+
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_admin_password
+      changed_when: false
+
+    - name: Display Jenkins initial admin password
+      debug:
+        msg: "Jenkins initial admin password: {{ jenkins_admin_password.stdout }}"
+
+    - name: Configure Jenkins firewall
+      ufw:
+        rule: allow
+        port: "{{ jenkins_port }}"
+        proto: tcp
+
+    - name: Allow SSH through firewall
+      ufw:
+        rule: allow
+        port: 22
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+  handlers:
+    - name: restart jenkins
+      service:
+        name: jenkins
+        state: restarted
+
